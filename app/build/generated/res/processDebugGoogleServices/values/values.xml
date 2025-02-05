@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="default_web_client_id" translatable="false">479084412820-jqufhm38anqk6jdsrhcitmet8nbmi25g.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">479084412820</string>
+    <string name="google_api_key" translatable="false">AIzaSyBJhXUzcd2kU85FSxxDAx4Jsl9v4rho97o</string>
+    <string name="google_app_id" translatable="false">1:479084412820:android:6b2ed1981394bf4ec4d981</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBJhXUzcd2kU85FSxxDAx4Jsl9v4rho97o</string>
+    <string name="google_storage_bucket" translatable="false">reelai-44505.firebasestorage.app</string>
+    <string name="project_id" translatable="false">reelai-44505</string>
+</resources>
