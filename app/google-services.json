@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "479084412820",
+    "project_id": "reelai-44505",
+    "storage_bucket": "reelai-44505.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:479084412820:android:6b2ed1981394bf4ec4d981",
+        "android_client_info": {
+          "package_name": "com.example.reel_ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "479084412820-4li646rhbdr2qjll1avlgpe48cmlvu9v.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.reel_ai",
+            "certificate_hash": "331aa0a553cd5b5b1805d094bdf20981cbbcecf2"
+          }
+        },
+        {
+          "client_id": "479084412820-jqufhm38anqk6jdsrhcitmet8nbmi25g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJhXUzcd2kU85FSxxDAx4Jsl9v4rho97o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "479084412820-jqufhm38anqk6jdsrhcitmet8nbmi25g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
