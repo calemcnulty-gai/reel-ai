@@ -27,8 +27,11 @@ import com.example.reel_ai.ui.common.ErrorScreen
 import com.example.reel_ai.ui.video.VideoScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
+import com.example.reel_ai.ui.videoedit.VideoEditScreen
 
 private const val TAG = "ReelAI_NavGraph"
+
+const val FEED_TARGET_VIDEO_ARG = "targetVideoId"
 
 sealed class Screen(val route: String) {
     data object Auth : Screen("auth")
@@ -71,6 +74,9 @@ sealed class Screen(val route: String) {
             return "error/$encodedMessage"
         }
     }
+    data object VideoEdit : Screen("video_edit/{videoId}") {
+        fun createRoute(videoId: String) = "video_edit/$videoId"
+    }
 }
 
 @Composable
@@ -98,19 +104,26 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Feed.route) {
+        composable(
+            route = "feed?$FEED_TARGET_VIDEO_ARG={$FEED_TARGET_VIDEO_ARG}",
+            arguments = listOf(
+                navArgument(FEED_TARGET_VIDEO_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { entry ->
+            val targetVideoId = entry.arguments?.getString(FEED_TARGET_VIDEO_ARG)
             FeedScreen(
-                onNavigateToCamera = {
-                    navController.navigate(Screen.Camera.route)
-                },
-                onNavigateToProfile = {
-                    navController.navigate(Screen.Profile.route)
-                },
+                onNavigateToCamera = { navController.navigate(Screen.Camera.route) },
+                onNavigateToProfile = { navController.navigate("profile") },
                 onSignOut = {
                     navController.navigate(Screen.Auth.route) {
                         popUpTo(Screen.Feed.route) { inclusive = true }
                     }
-                }
+                },
+                targetVideoId = targetVideoId
             )
         }
 
@@ -122,16 +135,14 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Profile.route) {
+        composable("profile") {
             ProfileScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+                onNavigateBack = { navController.popBackStack() },
                 onNavigateToVideo = { videoId ->
                     navController.navigate(Screen.Video.createRoute(videoId))
                 },
                 onNavigateToEditVideo = { videoId ->
-                    navController.navigate(Screen.Edit.createRoute(videoId))
+                    navController.navigate(Screen.VideoEdit.createRoute(videoId))
                 }
             )
         }
@@ -193,8 +204,8 @@ fun NavGraph(
                 file = file,
                 initialTitle = navController.previousBackStackEntry?.savedStateHandle?.get<String>("title"),
                 initialDescription = navController.previousBackStackEntry?.savedStateHandle?.get<String>("description"),
-                onUploadComplete = {
-                    navController.navigate(Screen.Feed.route) {
+                onUploadComplete = { videoId ->
+                    navController.navigate("feed?targetVideoId=$videoId") {
                         popUpTo(Screen.Camera.route) { inclusive = true }
                     }
                 },
@@ -303,6 +314,21 @@ fun NavGraph(
             ErrorScreen(
                 message = message,
                 onDismiss = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = Screen.VideoEdit.route,
+            arguments = listOf(
+                navArgument("videoId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val videoId = backStackEntry.arguments?.getString("videoId") ?: ""
+            VideoEditScreen(
+                videoId = videoId,
+                onNavigateBack = {
                     navController.popBackStack()
                 }
             )

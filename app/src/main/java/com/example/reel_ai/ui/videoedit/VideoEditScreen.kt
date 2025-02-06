@@ -22,6 +22,7 @@ private const val TAG = "VideoEditScreen"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoEditScreen(
+    videoId: String,
     onNavigateBack: () -> Unit,
     viewModel: VideoEditViewModel = hiltViewModel()
 ) {

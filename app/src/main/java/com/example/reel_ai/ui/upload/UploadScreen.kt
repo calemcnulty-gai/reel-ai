@@ -22,7 +22,7 @@ fun UploadScreen(
     file: File,
     initialTitle: String? = null,
     initialDescription: String? = null,
-    onUploadComplete: () -> Unit,
+    onUploadComplete: (String) -> Unit,
     onCancel: () -> Unit,
     onError: (String) -> Unit,
     viewModel: UploadViewModel = hiltViewModel()
@@ -54,12 +54,19 @@ fun UploadScreen(
     }
 
     // Handle one-time events
-    LaunchedEffect(Unit) {
-        viewModel.events.collectLatest { event ->
+    LaunchedEffect(true) {
+        viewModel.events.collect { event ->
             when (event) {
-                is UploadEvent.UploadComplete -> onUploadComplete()
-                is UploadEvent.NavigateBack -> onCancel()
-                is UploadEvent.ShowError -> onError(event.message)
+                is UploadEvent.NavigateToFeed -> {
+                    onUploadComplete(event.videoId)
+                }
+                is UploadEvent.ShowError -> {
+                    onError(event.message)
+                }
+                is UploadEvent.NavigateBack -> {
+                    onCancel()
+                }
+                else -> {}
             }
         }
     }

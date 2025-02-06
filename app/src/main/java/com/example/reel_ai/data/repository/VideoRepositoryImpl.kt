@@ -156,19 +156,12 @@ class VideoRepositoryImpl @Inject constructor(
     ): Video? = suspendCancellableCoroutine { continuation ->
         try {
             Log.d(TAG, "=== [UPLOAD-START] Starting upload process ===")
-            Log.d(TAG, "=== [UPLOAD-FILE] File: ${videoFile.absolutePath}, size: ${videoFile.length()} bytes ===")
-            
-            // Reset upload state
-            isUploadComplete = false
-            uploadSuccess = false
-            uploadCancelled = false
             
             val userId = auth.currentUser?.uid ?: run {
                 Log.e(TAG, "=== [UPLOAD-AUTH] Upload failed: User not authenticated ===")
                 completeUpload(continuation, null, false)
                 return@suspendCancellableCoroutine
             }
-            Log.d(TAG, "=== [UPLOAD-AUTH] User authenticated: $userId ===")
             
             if (!videoFile.exists()) {
                 Log.e(TAG, "=== [UPLOAD-VALIDATE] Upload failed: File does not exist ===")
@@ -182,152 +175,77 @@ class VideoRepositoryImpl @Inject constructor(
                 .child(userId)
                 .child(videoFileName)
             
-            Log.d(TAG, "=== [UPLOAD-STORAGE] Created storage reference: ${videoRef.path} ===")
-            
-            // Add storage rules sanity check
-            Log.d(TAG, "=== [FIRESTORE-SANITY] Storage Rules Check ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] request.auth != null : ${auth.currentUser != null} ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] request.auth.uid == userId : ${auth.currentUser?.uid == userId} ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] request.resource.size < 10MB : ${videoFile.length() < 10 * 1024 * 1024} ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] Actual file size: ${videoFile.length()} bytes ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] Size limit: ${10 * 1024 * 1024} bytes ===")
-            Log.d(TAG, "=== [FIRESTORE-SANITY] Storage path: /videos/$userId/$videoFileName ===")
-            
             val uploadTask = videoRef.putFile(Uri.fromFile(videoFile))
             
             uploadTask
                 .addOnProgressListener { taskSnapshot ->
                     val progress = (100.0 * taskSnapshot.bytesTransferred / taskSnapshot.totalByteCount)
-                    Log.d(TAG, "=== [UPLOAD-PROGRESS] Progress: $progress%, ${taskSnapshot.bytesTransferred}/${taskSnapshot.totalByteCount} bytes ===")
                     onProgress?.invoke(progress.toFloat())
-                }
-                .addOnCanceledListener {
-                    // Only handle cancellation if we're not already complete
-                    if (!isUploadComplete && !uploadSuccess) {
-                        uploadCancelled = true
-                        Log.d(TAG, "=== [UPLOAD-CANCEL-TASK] Upload task was cancelled ===")
-                        completeUpload(continuation, null, false)
-                    }
                 }
                 .continueWithTask { task ->
                     if (!task.isSuccessful) {
-                        Log.e(TAG, "=== [UPLOAD-ERROR] Upload task failed: ${task.exception?.message} ===", task.exception)
                         throw task.exception ?: Exception("Upload failed")
                     }
-                    Log.d(TAG, "=== [UPLOAD-URL] Requesting download URL ===")
                     videoRef.downloadUrl
                 }
                 .addOnSuccessListener { downloadUri ->
-                    Log.d(TAG, "=== [UPLOAD-URL] Got download URL: $downloadUri ===")
+                    // Create a temporary video object immediately and return it
+                    val tempVideo = Video(
+                        id = "temp_${System.currentTimeMillis()}", // Temporary ID
+                        userId = userId,
+                        title = title,
+                        description = description,
+                        videoUrl = downloadUri.toString(),
+                        thumbnailUrl = null, // We'll update this later
+                        createdAt = Date(), // This ensures proper timestamp
+                        views = 0,
+                        likes = 0,
+                        viewCount = 0,
+                        shareCount = 0
+                    )
                     
-                    // Generate and upload thumbnail
-                    val thumbnailFile = videoManager.generateThumbnail(videoFile)
-                    var thumbnailUrl: String?
+                    // Complete the continuation immediately with the temporary video
+                    completeUpload(continuation, tempVideo, true)
                     
-                    if (thumbnailFile != null) {
-                        Log.d(TAG, "=== [UPLOAD-THUMBNAIL] Uploading thumbnail ===")
-                        val thumbnailRef = storage.reference
-                            .child("thumbnails")
-                            .child(userId)
-                            .child("thumb_${System.currentTimeMillis()}.jpg")
-                        
-                        try {
+                    // Continue with thumbnail and Firestore operations in the background
+                    try {
+                        val thumbnailFile = videoManager.generateThumbnail(videoFile)
+                        if (thumbnailFile != null) {
+                            val thumbnailRef = storage.reference
+                                .child("thumbnails")
+                                .child(userId)
+                                .child("thumb_${System.currentTimeMillis()}.jpg")
+                            
                             thumbnailRef.putFile(Uri.fromFile(thumbnailFile))
                                 .continueWithTask { task ->
-                                    if (!task.isSuccessful) {
-                                        Log.e(TAG, "=== [UPLOAD-THUMBNAIL] Upload failed: ${task.exception?.message} ===", task.exception)
-                                        throw task.exception ?: Exception("Thumbnail upload failed")
-                                    }
-                                    thumbnailRef.downloadUrl
+                                    if (task.isSuccessful) thumbnailRef.downloadUrl
+                                    else throw task.exception ?: Exception("Thumbnail upload failed")
                                 }
-                                .addOnSuccessListener { uri ->
-                                    thumbnailUrl = uri.toString()
-                                    Log.d(TAG, "=== [UPLOAD-THUMBNAIL] Thumbnail uploaded: $thumbnailUrl ===")
-                                    
-                                    // Create video document
-                                    val video = Video(
-                                        id = "",
-                                        userId = userId,
-                                        title = title,
-                                        description = description,
-                                        videoUrl = downloadUri.toString(),
-                                        thumbnailUrl = thumbnailUrl,
-                                        createdAt = Date(),
-                                        views = 0,
-                                        likes = 0,
-                                        viewCount = 0,
-                                        shareCount = 0
-                                    )
-                                    
-                                    // Add to Firestore
-                                    videosCollection.add(video)
+                                .addOnSuccessListener { thumbnailUri ->
+                                    // Create the final video document with thumbnail
+                                    val finalVideo = tempVideo.copy(thumbnailUrl = thumbnailUri.toString())
+                                    videosCollection.add(finalVideo)
                                         .addOnSuccessListener { docRef ->
-                                            val finalVideo = video.copy(id = docRef.id)
-                                            completeUpload(continuation, finalVideo, true)
+                                            Log.d(TAG, "=== [UPLOAD-COMPLETE] Video document created with ID: ${docRef.id} ===")
                                         }
                                         .addOnFailureListener { e ->
-                                            Log.e(TAG, "=== [UPLOAD-FIRESTORE] Failed to create document: ${e.message} ===", e)
-                                            completeUpload(continuation, null, false)
+                                            Log.e(TAG, "=== [UPLOAD-ERROR] Failed to create video document: ${e.message} ===")
                                         }
                                 }
-                                .addOnFailureListener { e ->
-                                    Log.e(TAG, "=== [UPLOAD-THUMBNAIL] Failed to get thumbnail URL: ${e.message} ===", e)
-                                    // Continue without thumbnail
-                                    createVideoDocument(userId, title, description, downloadUri.toString(), null, continuation)
-                                }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "=== [UPLOAD-THUMBNAIL] Error during thumbnail upload: ${e.message} ===", e)
-                            // Continue without thumbnail
-                            createVideoDocument(userId, title, description, downloadUri.toString(), null, continuation)
-                        } finally {
                             thumbnailFile.delete()
                         }
-                    } else {
-                        // No thumbnail, create video document
-                        createVideoDocument(userId, title, description, downloadUri.toString(), null, continuation)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "=== [UPLOAD-ERROR] Background processing error: ${e.message} ===")
                     }
                 }
                 .addOnFailureListener { e ->
-                    Log.e(TAG, "=== [UPLOAD-ERROR] Failed to get download URL: ${e.message} ===", e)
+                    Log.e(TAG, "=== [UPLOAD-ERROR] Failed to upload video: ${e.message} ===")
                     completeUpload(continuation, null, false)
                 }
         } catch (e: Exception) {
-            Log.e(TAG, "=== [UPLOAD-ERROR] Unexpected error: ${e.message} ===", e)
+            Log.e(TAG, "=== [UPLOAD-ERROR] Unexpected error: ${e.message} ===")
             completeUpload(continuation, null, false)
         }
-    }
-
-    private fun createVideoDocument(
-        userId: String,
-        title: String?,
-        description: String?,
-        videoUrl: String,
-        thumbnailUrl: String?,
-        continuation: CancellableContinuation<Video?>
-    ) {
-        val video = Video(
-            id = "",
-            userId = userId,
-            title = title,
-            description = description,
-            videoUrl = videoUrl,
-            thumbnailUrl = thumbnailUrl,
-            createdAt = Date(),
-            views = 0,
-            likes = 0,
-            viewCount = 0,
-            shareCount = 0
-        )
-        
-        videosCollection.add(video)
-            .addOnSuccessListener { docRef ->
-                val finalVideo = video.copy(id = docRef.id)
-                completeUpload(continuation, finalVideo, true)
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "=== [UPLOAD-FIRESTORE] Failed to create document: ${e.message} ===", e)
-                completeUpload(continuation, null, false)
-            }
     }
 
     override suspend fun incrementViewCount(videoId: String) {

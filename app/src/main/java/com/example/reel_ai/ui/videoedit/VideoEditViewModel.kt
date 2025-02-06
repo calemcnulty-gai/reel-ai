@@ -26,7 +26,7 @@ class VideoEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val videoId: String = checkNotNull(savedStateHandle["videoId"])
+    private var videoId: String = checkNotNull(savedStateHandle["videoId"])
 
     private val _uiState = MutableStateFlow<VideoEditUiState>(VideoEditUiState.Loading)
     val uiState: StateFlow<VideoEditUiState> = _uiState.asStateFlow()

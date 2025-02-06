@@ -40,10 +40,13 @@ fun FeedScreen(
     onNavigateToCamera: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onSignOut: () -> Unit,
+    targetVideoId: String? = null,
     viewModel: FeedViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val pagerState = rememberPagerState(pageCount = { uiState.videos.size })
+    // Reverse the videos list for display
+    val displayVideos = remember(uiState.videos) { uiState.videos.reversed() }
+    val pagerState = rememberPagerState(pageCount = { displayVideos.size })
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -92,6 +95,17 @@ fun FeedScreen(
         }
     }
 
+    // Update the LaunchedEffect for target video to use the reversed list
+    LaunchedEffect(displayVideos, targetVideoId) {
+        if (targetVideoId != null && displayVideos.isNotEmpty()) {
+            val targetIndex = displayVideos.indexOfFirst { it.id == targetVideoId }
+            if (targetIndex != -1) {
+                delay(100)
+                pagerState.animateScrollToPage(targetIndex)
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Add UserAvatar at the top
         UserAvatar(
@@ -104,7 +118,7 @@ fun FeedScreen(
                 .zIndex(1f)
         )
 
-        if (uiState.videos.isEmpty() && !uiState.isLoading) {
+        if (displayVideos.isEmpty() && !uiState.isLoading) {
             Column(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -128,7 +142,7 @@ fun FeedScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val video = uiState.videos.getOrNull(page) ?: return@VerticalPager
+                val video = displayVideos.getOrNull(page) ?: return@VerticalPager
 
                 // Create or get player and play state for this page
                 val player = remember(page) {

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.reel_ai.domain.repository.VideoRepository
 import com.example.reel_ai.domain.video.VideoManager
+import com.example.reel_ai.domain.model.Video
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -107,7 +108,7 @@ class UploadViewModel @Inject constructor(
                 
                 if (video != null) {
                     Log.d(TAG, "Upload complete: ${video.id}")
-                    _events.emit(UploadEvent.UploadComplete)
+                    _events.emit(UploadEvent.NavigateToFeed(video.id))
                 } else {
                     Log.e(TAG, "Upload failed: Repository returned null")
                     _uiState.value = currentState.copy(isUploading = false)
